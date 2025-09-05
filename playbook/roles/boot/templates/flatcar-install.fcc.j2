@@ -1,0 +1,43 @@
+variant: flatcar
+version: 1.0.0
+systemd:
+  units:
+    - name: installer.service
+      enabled: true
+      contents: |
+        [Unit]
+        Requires=network-online.target
+        After=network-online.target
+        [Service]
+        Type=forking
+        TimeoutStartSec=600
+        RemainAfterExit=yes
+        ExecStart=/usr/bin/sh -c "flatcar-install -d /dev/sda -i /opt/ignition.ign && udevadm settle && systemctl reboot"
+        [Install]
+        WantedBy=multi-user.target
+passwd:
+  users:
+    - name: core
+      ssh_authorized_keys:
+        - {{ ssh_public_key }}
+storage:
+  files:
+    - path: /etc/hostname
+      mode: 0644
+      contents:
+        inline: {{ hostvars[item]['hostname'] }}
+    - path: /etc/systemd/network/00-{{ hostvars[item]['network_interface'] }}.network
+      contents:
+        inline: |
+          [Match]
+          Name={{ hostvars[item]['network_interface'] }}
+
+          [Network]
+          DNS={{ iface_out.nameservers }}
+          Address={{ hostvars[item]['ipv4_address'] }}/{{ iface_in.cidr }}
+          Gateway={{ iface_in.ip }}
+    - path: /opt/ignition.ign
+      filesystem: root
+      mode: 777
+      contents:
+        source: http://{{ iface_in.ip }}/ignition/{{ hostvars[item]['mac_address'] }}.ign

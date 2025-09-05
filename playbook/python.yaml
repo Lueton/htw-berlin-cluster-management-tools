@@ -1,0 +1,5 @@
+- hosts: controllers[0]
+  gather_facts: false
+  become: true
+  roles:
+    - vmware.coreos-bootstrap

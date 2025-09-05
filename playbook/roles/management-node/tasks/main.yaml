@@ -1,0 +1,109 @@
+- name: Extend logical volume
+  lvol:
+    vg: ubuntu-vg
+    lv: ubuntu-lv
+    size: +100%FREE
+    resizefs: true
+
+- name: Resize filesystem
+  lvol:
+    vg: ubuntu-vg
+    lv: ubuntu-lv
+    resizefs: true
+
+- name: Copy netplan template 00-installer-config.yaml
+  template:
+    src: 00-installer-config.yaml.j2
+    dest: /etc/netplan/00-installer-config.yaml
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Apply and reload netplan
+  command: netplan apply
+  async: 100
+  poll: 0
+  changed_when: false
+
+- name: Update Ansible ip address information
+  set_fact:
+    ansible_host: "{{ iface_in.ip }}"
+
+- name: Waiting for the hosts network to come back up
+  local_action:
+    module: wait_for
+    port: 22
+    delay: 10
+    state: started
+  register: wait_result
+
+- name: Enable ipv4 forward
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    sysctl_set: true
+    state: present
+    reload: true
+
+- name: Add iptables NAT rule
+  iptables:
+    table: nat
+    chain: POSTROUTING
+    out_interface: "{{ iface_out.name }}"
+    jump: MASQUERADE
+
+- name: Save current state of the firewall in system file
+  community.general.iptables_state:
+    state: saved
+    path: /etc/sysconfig/iptables
+
+- name: install packages required by docker
+  become: true
+  apt:
+    update_cache: yes
+    state: latest
+    name:
+    - apt-transport-https
+    - ca-certificates
+    - curl
+    - gpg-agent
+    - software-properties-common
+
+- name: add docker GPG key
+  become: true
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+
+- name: add docker apt repo
+  become: true
+  apt_repository:
+    repo: deb https://download.docker.com/linux/ubuntu jammy stable
+    state: present
+
+- name: install docker
+  become: true
+  apt:
+    update_cache: yes
+    state: latest
+    name:
+    - docker-ce
+    - docker-ce-cli
+    - containerd.io
+
+- name: install python dependencies
+  become: true
+  apt:
+    update_cache: yes
+    state: latest
+    name: python3-pip
+
+- name: install 'Docker SDK for Python'
+  pip:
+    name: docker
+
+- name: Install Docker Compose
+  ansible.builtin.pip:
+    name: docker-compose
+    state: present
+

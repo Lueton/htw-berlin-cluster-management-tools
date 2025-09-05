@@ -1,0 +1,11 @@
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    {{ iface_out.name }}:
+      addresses: [{{ iface_out.ip_cidr }}]
+      gateway4: {{ iface_out.gateway }}
+      nameservers:
+        addresses: [{{ iface_out.nameservers }}]
+    {{ iface_in.name }}:
+      addresses: [{{ iface_in.ip_cidr }}]

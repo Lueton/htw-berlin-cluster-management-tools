@@ -1,0 +1,23 @@
+- name: Set next boot to PXE
+  hosts: all
+  become: yes
+  tasks:
+    - name: Get current EFI boot entries
+      command: efibootmgr
+      register: efi_boots
+
+    - name: Find PXE boot entry
+      set_fact:
+        pxe_entry: "{{ efi_boots.stdout_lines | select('search', 'PXE') | list | first | regex_search('Boot([0-9A-Fa-f]{4})', '\\1') }}"
+
+    - name: Fail if no PXE entry found
+      fail:
+        msg: "No PXE boot entry found in EFI."
+      when: pxe_entry is not defined
+
+    - name: Set next boot to PXE
+      command: efibootmgr -n {{ pxe_entry }}
+
+    - name: Reboot node
+      reboot:
+        reboot_timeout: 300
