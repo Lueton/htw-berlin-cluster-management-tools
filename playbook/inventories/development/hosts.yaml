@@ -1,0 +1,8 @@
+all:
+  children:
+    controllers:
+      hosts:
+        10.0.0.50 : { ipv4_address: 10.0.0.50, mac_address: "14:b3:1f:28:af:5c", disk_name: sda, network_interface: "enp1s0", hostname: "cluster-controller-00", ansible_python_interpreter: "/home/core/bin/python" }
+    workers:
+      hosts:
+        cluster-worker-00: { ipv4_address: 10.0.0.100, mac_address: "14:b3:1f:28:48:9a", disk_name: sda, network_interface: "enp1s0", hostname: "cluster-worker-00" }

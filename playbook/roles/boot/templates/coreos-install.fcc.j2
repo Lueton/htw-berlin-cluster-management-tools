@@ -1,0 +1,47 @@
+variant: fcos
+version: 1.6.0
+systemd:
+  units:
+    - name: install-coreos.service
+      enabled: true
+passwd:
+  users:
+    - name: core
+      ssh_authorized_keys:
+        - {{ ssh_public_key }}
+storage:
+  files:
+    - path: /etc/hostname
+      mode: 0644
+      contents:
+        inline: {{ hostvars[item]['hostname'] }}
+    - path: /etc/systemd/network/00-{{ hostvars[item]['network_interface'] }}.network
+      contents:
+        inline: |
+          [Match]
+          Name={{ hostvars[item]['network_interface'] }}
+          [Network]
+          DNS={{ iface_out.nameservers }}
+          Address={{ hostvars[item]['ipv4_address'] }}/{{ iface_in.cidr }}
+          Gateway={{ iface_in.ip }}
+    - path: /opt/ignition.ign
+      filesystem: root
+      mode: 777
+      contents:
+        source: http://{{ iface_in.ip }}/ignition/{{ hostvars[item]['mac_address'] }}.ign
+    - path: /etc/systemd/system/install-coreos.service
+      contents:
+        inline: |
+          [Unit]
+          Description=Install Fedora CoreOS onto /dev/sda
+          After=network-online.target
+          Wants=network-online.target
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/bin/coreos-installer install /dev/sda \
+                     --ignition-file /opt/ignition.ign
+          ExecStartPost=/usr/bin/systemctl --no-block reboot
+          RemainAfterExit=yes
+          [Install]
+          WantedBy=multi-user.target
+      mode: 0644

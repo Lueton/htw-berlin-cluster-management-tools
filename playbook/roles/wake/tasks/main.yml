@@ -1,0 +1,28 @@
+#- name: Send Wake-on-LAN magic packets
+#  community.general.wakeonlan:
+#    mac: "{{ hostvars[inventory_hostname]['mac_address'] }}"
+#    broadcast: "{{ iface_in.ip }}"
+#  delegate_to: localhost
+
+- name: Install etherwake package
+  ansible.builtin.package:
+    name: etherwake
+    state: present
+  delegate_to: localhost
+
+- name: Print the gateway for each host when defined
+  ansible.builtin.debug:
+    msg: "etherwake -i {{ iface_in.name }} {{ hostvars[inventory_hostname]['mac_address'] }}"
+
+- name: Send Wake-on-LAN Magic Packet
+  ansible.builtin.command: "etherwake -i {{ iface_in.name }} {{ hostvars[inventory_hostname]['mac_address'] }}"
+  delegate_to: localhost
+  register: result
+
+- name: Get uptime information
+  ansible.builtin.shell: /usr/bin/uptime
+  register: result
+
+- name: Wait for the machines to come online
+  ansible.builtin.wait_for_connection:
+    timeout: 600

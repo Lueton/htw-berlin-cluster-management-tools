@@ -1,0 +1,17 @@
+allow bootp;
+allow booting;
+max-lease-time 1200;
+default-lease-time 900;
+log-facility local7;
+
+option ip-forwarding    false;
+option mask-supplier    false;
+
+   subnet {{ iface_in.subnet }} netmask {{ iface_in.netmask }} {
+
+       option routers {{ iface_in.ip }};
+       option domain-name-servers {{ iface_out.nameservers }};
+       range {{ iface_in.dhcp_range_start }} {{ iface_in.dhcp_range_end }};
+       next-server {{ iface_in.ip }};
+       filename "grubx64.efi";
+   }

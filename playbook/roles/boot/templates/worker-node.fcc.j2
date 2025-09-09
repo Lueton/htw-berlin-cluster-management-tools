@@ -1,0 +1,70 @@
+variant: fcos
+version: 1.6.0
+systemd:
+  units:
+    - name: k3s-install.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Run K3s script
+        Wants=network-online.target
+        After=network.target network-online.target
+        ConditionPathExists=/opt/k3s-install.sh
+        ConditionPathExists=!/opt/bin/k3s
+        [Service]
+        Type=forking
+        TimeoutStartSec=180
+        RemainAfterExit=yes
+        KillMode=process
+        Environment="K3S_TOKEN={{ k3s.token }}"
+        Environment="INSTALL_K3S_EXEC=agent {{ k3s.agent_args }}"
+        Environment="INSTALL_K3S_VERSION={{ k3s.version }}"
+        Environment="K3S_URL=https://{{ k3s.controller_ip }}:6443"
+        Environment="K3S_NODE_NAME={{ hostvars[item]['hostname'] }}"
+        Environment="K3S_KUBECONFIG_MODE=644"
+        ExecStart=/usr/bin/sh -c "/opt/k3s-install.sh"
+        [Install]
+        WantedBy=multi-user.target
+    - name: install-python3.service
+      enabled: true
+passwd:
+  users:
+    - name: core
+      ssh_authorized_keys:
+        - {{ ssh_public_key }}
+storage:
+  files:
+    - path: /etc/hostname
+      mode: 0644
+      contents:
+        inline: {{ hostvars[item]['hostname'] }}
+    - path: /etc/systemd/network/00-{{ hostvars[item]['network_interface'] }}.network
+      overwrite: true
+      contents:
+        inline: |
+          [Match]
+          Name={{ hostvars[item]['network_interface'] }}
+
+          [Network]
+          DNS={{ iface_out.nameservers }}
+          Address={{ hostvars[item]['ipv4_address'] }}/{{ iface_in.cidr }}
+          Gateway={{ iface_in.ip }}
+    - path: /opt/k3s-install.sh
+      filesystem: root
+      mode: 777
+      contents:
+        source: https://get.k3s.io
+    - path: /etc/systemd/system/install-python3.service
+      contents:
+        inline: |
+          [Unit]
+          Description=Install Python3 after first boot
+          After=network-online.target
+          Wants=network-online.target
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/bin/rpm-ostree install python3
+          RemainAfterExit=yes
+          ExecStartPost=/usr/bin/systemctl --no-block reboot
+          [Install]
+          WantedBy=multi-user.target

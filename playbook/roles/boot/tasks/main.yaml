@@ -1,0 +1,86 @@
+- name: Generate an OpenSSH keypair with the default values (4096 bits, rsa)
+  community.crypto.openssh_keypair:
+    path: ~/.ssh/id_ed25519
+
+- name: Update ssh public key
+  set_fact:
+    ssh_public_key: "{{ lookup('file', '~/.ssh/id_ed25519.pub') }}"
+
+- name: Copy grub template grub.cfg
+  template:
+    src: grub.cfg.j2
+    dest: "{{ role_path }}/files/tftp/tftp/grub/grub.cfg"
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Copy nginx template nginx.conf
+  template:
+    src: nginx.conf.j2
+    dest: "{{ role_path }}/files/nginx/nginx.conf"
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Copy dhcpd template dhcpd.conf
+  template:
+    src: dhcpd.conf.j2
+    dest: "{{ role_path }}/files/dhcpd/dhcpd.conf"
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Generate ignition config for each machine
+  ansible.builtin.template:
+    src: coreos-install.fcc.j2
+    dest: "{{ role_path }}/files/nginx/ignition/{{ hostvars[item]['mac_address'] }}.coreos-install.fcc"
+    mode: 0644
+  loop: "{{ groups['all'] }}"
+
+- name: Generate ignition config for each controller machine
+  ansible.builtin.template:
+    src: controller-node.fcc.j2
+    dest: "{{ role_path }}/files/nginx/ignition/{{ hostvars[item]['mac_address'] }}.fcc"
+    mode: 0644
+  loop: "{{ groups['controllers'] }}"
+
+- name: Generate ignition config for each worker machine
+  ansible.builtin.template:
+    src: worker-node.fcc.j2
+    dest: "{{ role_path }}/files/nginx/ignition/{{ hostvars[item]['mac_address'] }}.fcc"
+    mode: 0644
+  loop: "{{ groups['workers'] }}"
+
+- name: Get list of Butane files
+  ansible.builtin.find:
+    paths: "{{ role_path }}/files/nginx/ignition"
+    patterns: "*.fcc"
+  register: butane_files
+
+- name: Convert Butane files to Ignition
+  ansible.builtin.shell: cat "{{ item.path }}" | docker run --rm -i quay.io/coreos/butane:latest > "{{ role_path }}/files/nginx/ignition/{{ item.path | basename | regex_replace('.fcc$', '') }}.ign"
+  loop: "{{ butane_files.files }}"
+  changed_when: false
+
+- name: Start the PXE server
+  community.docker.docker_compose_v2:
+    project_src: "{{ role_path }}/files"
+    state: present
+    build: always
+    recreate: always
+
+# - name: Wait for Kubernetes node to be ready
+#   kubernetes.core.k8s_info:
+#     api_version: v1
+#     kind: Node
+#     label_selectors:
+#       - node-role.kubernetes.io/worker
+#       - !node.kubernetes.io/unreachable
+#   register: node_info
+#   until: node_info.nodes | length > 0 and node_info.nodes[0].status.conditions | selectattr('type', 'eq', 'Ready') | selectattr('status', 'eq', 'True') | list | length > 0
+#   retries: 60
+#   delay: 10
+#
+# - name: Display node info
+#   debug:
+#     var: node_info

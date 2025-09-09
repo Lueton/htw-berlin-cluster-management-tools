@@ -1,0 +1,29 @@
+# Network
+
+# this is the network interface which is connected to the internet
+iface_out:
+  name: "eno1"
+  ip: "192.168.178.100/24"
+  ip_cidr: "192.168.178.100/24"
+  gateway: "192.168.178.1"
+  nameservers: "8.8.8.8"
+
+# this is the network interface which will be used to create the cluster network
+iface_in:
+  name: "enp4s2"
+  ip_cidr: "10.0.0.1/24"
+  cidr: "24"
+  ip: "10.0.0.1"
+  subnet: "10.0.0.0"
+  netmask: "255.255.255.0"
+  dhcp_range_start: "10.0.0.50"
+  dhcp_range_end: "10.0.0.200"
+
+k3s:
+  version: "v1.25.9+k3s1"
+  token: "myawesometoken"
+  server_args: "--disable servicelb --disable traefik"
+  agent_args: "--with-node-id"
+  controller_ip: "{{ hostvars[groups['controllers'][0]]['ipv4_address'] | default(groups['controllers'][0]) }}"
+
+ssh_public_key: "{{ lookup('file', '~/.ssh/id_ed25519.pub') }}"

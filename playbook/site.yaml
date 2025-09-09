@@ -1,0 +1,30 @@
+- name: Configure management-node
+  hosts: localhost
+  roles:
+    - management-node
+
+- name: Provision bare metal machines
+  hosts: all
+  gather_facts: false
+  roles:
+    - wake    
+
+- name: Start PXE server
+  hosts: localhost
+  roles:
+    - boot
+
+- name: Bootstrap Cluster
+  hosts: localhost
+  become: true
+  vars:
+    kubeconfig_local: "/home/ansible/.kube/config"
+    kubeconfig_remote: "/etc/rancher/k3s/k3s.yaml"
+    node_ip: "{{ hostvars[inventory_hostname].ansible_host | default(inventory_hostname) }}"
+  gather_facts: no
+  roles:
+    - bootstrap
+
+
+
+
